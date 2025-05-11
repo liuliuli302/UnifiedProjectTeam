@@ -8,7 +8,8 @@ import argparse
 import time
 from pathlib import Path
 
-from pipeline.summarization_pipeline import VideoSummarizationPipeline
+# Use absolute import now that the package is properly installed
+from TFVSN.pipeline.summarization_pipeline import VideoSummarizationPipeline
 
 
 def parse_args():

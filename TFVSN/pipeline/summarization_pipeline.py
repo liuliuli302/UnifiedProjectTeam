@@ -7,13 +7,13 @@ from typing import Dict, List, Any, Union, Optional
 import numpy as np
 import time
 from tqdm import tqdm
-import time
 
-from ..core.video_processor import FrameExtractor, FeatureExtractor
-from ..core.dataset_builder import SumMeDataset, TVSumDataset
-from ..core.evaluation import SimilarityCalculator, F1ScoreEvaluator, ScoreCalculator
-from ..models.llm_processor import LLMProcessor
-from ..models.blip_processor import BlipProcessor
+# Use absolute imports
+from TFVSN.core.video_processor import FrameExtractor, FeatureExtractor
+from TFVSN.core.dataset_builder import SumMeDataset, TVSumDataset
+from TFVSN.core.evaluation import SimilarityCalculator, F1ScoreEvaluator, ScoreCalculator
+from TFVSN.models.llm_processor import LLMProcessor
+from TFVSN.models.blip_processor import BlipProcessor
 from ..utils.data_handler import JsonHandler
 from ..config.settings import (
     FRAME_EXTRACTION_CONFIG,
