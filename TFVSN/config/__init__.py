@@ -3,9 +3,7 @@
 提供配置对象的访问接口
 """
 
-from .config import (
-    load_config_from_json
-)
+from .config import load_config_from_json
 
 from .config_objects import (
     BaseConfig,
