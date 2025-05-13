@@ -117,3 +117,16 @@ class BlipProcessor(VisionEncoderInterface):
                 projected_features = projected_features.to(image_embeds.dtype)
                 
             return projected_features.cpu().numpy()
+            
+    def process(self, images: Union[List[Path], List[np.ndarray]], *args, **kwargs) -> np.ndarray:
+        """
+        使用模型处理输入
+        
+        Args:
+            images: 图像路径或数组列表
+            
+        Returns:
+            处理后的特征
+        """
+        # 这个方法是对encode方法的包装，以实现抽象接口
+        return self.encode(images)

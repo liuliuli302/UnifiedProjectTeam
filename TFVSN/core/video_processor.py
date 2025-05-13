@@ -46,7 +46,7 @@ class VideoProcessor(ABC):
 class FrameExtractor(VideoProcessor):
     """从视频中提取帧"""
     
-    def __init__(self, video_path: Union[str, Path], output_dir: Union[str, Path], fps: float = 1):
+    def __init__(self, video_path: Union[str, Path], output_dir: Union[str, Path], fps: float = 1, frame_interval: int = None):
         """
         初始化帧提取器
         
@@ -54,11 +54,13 @@ class FrameExtractor(VideoProcessor):
             video_path: 视频文件路径
             output_dir: 提取的帧保存目录
             fps: 每秒提取的帧数
+            frame_interval: 帧间隔，如果指定则优先使用
         """
         super().__init__(video_path)
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
         self.fps = fps
+        self.frame_interval = frame_interval
         
     def process(self, max_frames: Optional[int] = None, force_sample: bool = False) -> Tuple[np.ndarray, str, float]:
         """
@@ -84,8 +86,11 @@ class FrameExtractor(VideoProcessor):
         video_time = total_frame_num / vr.get_avg_fps()
         
         # 计算采样间隔
-        sample_fps = round(vr.get_avg_fps() / self.fps)
-        frame_idx = [i for i in range(0, len(vr), sample_fps)]
+        if self.frame_interval:
+            sample_interval = self.frame_interval
+        else:
+            sample_interval = round(vr.get_avg_fps() / self.fps)
+        frame_idx = [i for i in range(0, len(vr), sample_interval)]
         frame_time = [i / vr.get_avg_fps() for i in frame_idx]
         
         # 如果需要限制帧数
@@ -124,24 +129,55 @@ class FrameExtractor(VideoProcessor):
 class FeatureExtractor(VideoProcessor):
     """从视频中提取特征"""
     
-    def __init__(self, video_path: Union[str, Path], output_dir: Union[str, Path]):
+    def __init__(self, video_path: Union[str, Path], output_dir: Union[str, Path], stride: int = None, batch_size: int = None):
         """
         初始化特征提取器
         
         Args:
             video_path: 视频文件路径
             output_dir: 特征保存目录
+            stride: 特征提取的步长
+            batch_size: 批处理大小
         """
         super().__init__(video_path)
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
         
-    @abstractmethod
-    def process(self, *args, **kwargs):
+        # 使用配置文件中的参数或默认值
+        from ..config.settings import FEATURE_EXTRACTION_CONFIG
+        self.stride = stride or FEATURE_EXTRACTION_CONFIG["stride"]
+        self.batch_size = batch_size or FEATURE_EXTRACTION_CONFIG["batch_size"]
+    
+    def process(self, frames: np.ndarray = None, *args, **kwargs) -> np.ndarray:
         """
-        提取视频特征，具体实现由子类决定
+        提取视频特征
+        
+        Args:
+            frames: 视频帧，如果为None则从视频文件中读取
+            
+        Returns:
+            提取的特征
         """
-        pass
+        if frames is None:
+            # 使用FrameExtractor提取帧
+            from decord import VideoReader, cpu
+            vr = VideoReader(str(self.video_path), ctx=cpu(0))
+            frame_count = len(vr)
+            # 根据stride采样
+            indices = list(range(0, frame_count, self.stride))
+            frames = vr.get_batch(indices).asnumpy()
+            
+        # 批量处理
+        features = []
+        for i in range(0, len(frames), self.batch_size):
+            batch = frames[i:i+self.batch_size]
+            # 这里添加实际的特征提取逻辑
+            # 示例：如果有预训练模型，则使用模型提取特征
+            # 这里用随机值代替，实际应用中需替换为真实特征
+            batch_features = np.random.randn(len(batch), 512)  # 假设提取512维特征
+            features.append(batch_features)
+            
+        return np.vstack(features) if features else np.array([])
 
 
 class TextFeatureExtractor(ABC):

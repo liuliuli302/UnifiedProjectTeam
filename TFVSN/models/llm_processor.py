@@ -129,3 +129,20 @@ class LLMProcessor(LLMInterface):
         )[0].strip()
         
         return response
+        
+    def process(self, 
+               prompt: str,
+               images: Optional[List[Union[Path, np.ndarray]]] = None,
+               **kwargs) -> str:
+        """
+        使用模型处理输入
+        
+        Args:
+            prompt: 输入提示
+            images: 可选的图像输入
+            
+        Returns:
+            处理后的文本
+        """
+        # 这个方法是对generate方法的包装，以实现抽象接口
+        return self.generate(prompt, images, **kwargs)

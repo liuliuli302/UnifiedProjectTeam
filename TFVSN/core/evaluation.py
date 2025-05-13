@@ -171,16 +171,21 @@ class F1ScoreEvaluator(Evaluator):
 class ScoreCalculator:
     """分数计算器"""
     
-    def __init__(self):
-        """初始化分数计算器"""
-        pass
+    def __init__(self, summary_ratio: float = None):
+        """
+        初始化分数计算器
         
-    @staticmethod
-    def generate_summary(shot_bound: np.ndarray, 
+        Args:
+            summary_ratio: 摘要长度占原视频长度的比例，如果为None则使用配置中的值
+        """
+        from ..config.settings import SUMMARIZATION_CONFIG
+        self.summary_ratio = summary_ratio or SUMMARIZATION_CONFIG["summary_ratio"]
+        
+    def generate_summary(self, shot_bound: np.ndarray, 
                         scores: np.ndarray, 
                         n_frames: int, 
                         positions: np.ndarray,
-                        summary_ratio: float = 0.15) -> np.ndarray:
+                        summary_ratio: float = None) -> np.ndarray:
         """
         生成视频摘要
         
@@ -221,7 +226,9 @@ class ScoreCalculator:
             
         # 使用背包算法选择最佳镜头
         final_shot = shot_bound[-1]
-        final_max_length = int((final_shot[1] + 1) * summary_ratio)
+        # 使用传入的summary_ratio参数或类属性
+        actual_summary_ratio = summary_ratio if summary_ratio is not None else self.summary_ratio
+        final_max_length = int((final_shot[1] + 1) * actual_summary_ratio)
         
         knapsack = KnapsackSolver()
         selected = knapsack.solve(final_max_length, shot_lengths, shot_imp_scores)

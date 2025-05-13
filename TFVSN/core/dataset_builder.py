@@ -162,9 +162,11 @@ class SumMeDataset(VideoSummarizationDataset):
             dataset_dir: 数据集目录
         """
         super().__init__(dataset_dir, "SumMe")
-        self.hdf_path = Path(self.dataset_dir, "SumMe", "summe.h5")
-        self.dataset_jump_path = Path(self.dataset_dir, "SumMe", "summe_dataset_jump.json")
-        self.dataset_turn_path = Path(self.dataset_dir, "SumMe", "summe_dataset_turn.json")
+        from ..config.settings import SUMME_DATASET
+        self.hdf_path = SUMME_DATASET["hdf_path"]
+        self.dataset_jump_path = SUMME_DATASET["dataset_jump"]
+        self.dataset_turn_path = SUMME_DATASET["dataset_turn"]
+        self.eval_method = SUMME_DATASET["eval_method"]
         
     def load_data(self) -> Tuple[Dict[str, Any], Dict[str, str]]:
         """
@@ -222,6 +224,27 @@ class SumMeDataset(VideoSummarizationDataset):
         if self.dataset_turn_path.exists():
             return self.load_json(self.dataset_turn_path)
         return None
+        
+    def save_data(self, data: Dict[str, Any], output_path: Union[str, Path]) -> None:
+        """
+        保存数据集
+        
+        Args:
+            data: 数据集
+            output_path: 保存路径
+        """
+        output_path = Path(output_path)
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        
+        # 根据文件扩展名决定保存方式
+        if output_path.suffix.lower() == '.json':
+            self.save_json(data, output_path)
+        elif output_path.suffix.lower() == '.h5':
+            with h5py.File(output_path, 'w') as f:
+                for key, value in data.items():
+                    f.create_dataset(key, data=value)
+        else:
+            raise ValueError(f"不支持的文件格式: {output_path.suffix}")
 
 
 class TVSumDataset(VideoSummarizationDataset):
@@ -235,9 +258,11 @@ class TVSumDataset(VideoSummarizationDataset):
             dataset_dir: 数据集目录
         """
         super().__init__(dataset_dir, "TVSum")
-        self.hdf_path = Path(self.dataset_dir, "TVSum", "tvsum.h5")
-        self.dataset_jump_path = Path(self.dataset_dir, "TVSum", "tvsum_dataset_jump.json")
-        self.dataset_turn_path = Path(self.dataset_dir, "TVSum", "tvsum_dataset_turn.json")
+        from ..config.settings import TVSUM_DATASET
+        self.hdf_path = TVSUM_DATASET["hdf_path"]
+        self.dataset_jump_path = TVSUM_DATASET["dataset_jump"]
+        self.dataset_turn_path = TVSUM_DATASET["dataset_turn"]
+        self.eval_method = TVSUM_DATASET["eval_method"]
         
     def load_data(self) -> Tuple[Dict[str, Any], Dict[str, str]]:
         """
@@ -295,3 +320,24 @@ class TVSumDataset(VideoSummarizationDataset):
         if self.dataset_turn_path.exists():
             return self.load_json(self.dataset_turn_path)
         return None
+        
+    def save_data(self, data: Dict[str, Any], output_path: Union[str, Path]) -> None:
+        """
+        保存数据集
+        
+        Args:
+            data: 数据集
+            output_path: 保存路径
+        """
+        output_path = Path(output_path)
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        
+        # 根据文件扩展名决定保存方式
+        if output_path.suffix.lower() == '.json':
+            self.save_json(data, output_path)
+        elif output_path.suffix.lower() == '.h5':
+            with h5py.File(output_path, 'w') as f:
+                for key, value in data.items():
+                    f.create_dataset(key, data=value)
+        else:
+            raise ValueError(f"不支持的文件格式: {output_path.suffix}")

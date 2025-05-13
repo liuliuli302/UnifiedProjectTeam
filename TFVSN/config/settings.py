@@ -7,7 +7,7 @@ from pathlib import Path
 
 # 基础路径配置
 ROOT_DIR = Path(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-DATASET_DIR = ROOT_DIR / "dataset"
+DATASET_DIR = Path("/root/autodl-tmp/data")
 OUTPUT_DIR = ROOT_DIR / "dataset" / "result"
 
 # 数据集配置
@@ -49,13 +49,13 @@ BLIP_CONFIG = {
 
 # 提取配置
 FRAME_EXTRACTION_CONFIG = {
-    "fps": 1,
-    "frame_interval": 15
+    "fps": 1,  # 每秒提取的帧数
+    "frame_interval": 15  # 帧间隔（每隔多少帧提取一帧，优先级高于fps）
 }
 
 FEATURE_EXTRACTION_CONFIG = {
-    "stride": 1,
-    "batch_size": 16
+    "stride": 1,  # 特征提取的步长（每隔多少帧提取一次特征）
+    "batch_size": 16  # 特征提取时的批处理大小，影响内存使用和速度
 }
 
 # 摘要生成配置
