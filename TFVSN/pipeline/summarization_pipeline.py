@@ -15,44 +15,63 @@ from TFVSN.core.evaluation import SimilarityCalculator, F1ScoreEvaluator, ScoreC
 from TFVSN.models.llm_processor import LLMProcessor
 from TFVSN.models.blip_processor import BlipProcessor
 from ..utils.data_handler import JsonHandler
-from ..config.settings import (
-    FRAME_EXTRACTION_CONFIG,
-    FEATURE_EXTRACTION_CONFIG,
-    SUMMARIZATION_CONFIG,
-    RESULTS_CONFIG,
-    DATASET_DIR,
-    SUMME_DATASET,
-    TVSUM_DATASET
+from ..config import (
+    PathConfig,
+    PipelineConfig,
+    ResultsConfig,
+    SummarizationConfig
 )
+from ..config.config import load_config_from_json
 
 
 class VideoSummarizationPipeline:
     """视频摘要流水线"""
     
-    def __init__(self, dataset_dir: Union[str, Path], pipeline_id: str = None):
+    def __init__(self, config: PipelineConfig = None, paths_config: PathConfig = None, dataset_dir: Union[str, Path] = None, pipeline_id: str = None, output_dir: Union[str, Path] = None):
         """
         初始化视频摘要流水线
         
         Args:
-            dataset_dir: 数据集目录
-            pipeline_id: 流水线标识符，用于区分不同的运行实例
+            config: 流水线配置对象
+            paths_config: 路径配置对象
+            dataset_dir: 数据集目录，如果提供则覆盖配置中的值
+            pipeline_id: 流水线标识符，如果提供则覆盖配置中的值
+            output_dir: 输出目录，如果提供则覆盖配置中的值
         """
-        self.dataset_dir = Path(dataset_dir)
-        self.pipeline_id = pipeline_id or f"run_{int(time.time())}"
+        # 加载配置数据
+        config_data = load_config_from_json()
+        
+        # 创建配置对象
+        if config is None:
+            self.config = PipelineConfig(config_data.get('pipeline', {}))
+        else:
+            self.config = config
+            
+        if paths_config is None:
+            self.paths_config = PathConfig(config_data.get('paths', {}))
+        else:
+            self.paths_config = paths_config
+            
+        self.summarization_config = SummarizationConfig(config_data.get('summarization', {}))
+        self.results_config = ResultsConfig(config_data.get('results_output', {}))
+        
+        # 使用传入的参数或配置中的值
+        self.dataset_dir = Path(dataset_dir) if dataset_dir else Path(self.paths_config.dataset_dir)
+        self.pipeline_id = pipeline_id or self.config.pipeline_id or f"run_{int(time.time())}"
+        self.output_dir = Path(output_dir) if output_dir else Path(self.paths_config.output_dir)
+        
+        # 内存缓存
+        self._cached_results = {}
         
         # 初始化组件
         self.llm = LLMProcessor()
         self.blip = BlipProcessor()
         self.similarity_calculator = SimilarityCalculator()
         # 使用配置中的summary_ratio参数初始化ScoreCalculator
-        self.score_calculator = ScoreCalculator(SUMMARIZATION_CONFIG["summary_ratio"])
+        self.score_calculator = ScoreCalculator(self.summarization_config.summary_ratio)
         
         # 创建结果目录
-        self.out_dir = Path("/root/TFVSN/oop/out")
-        self.out_dir.mkdir(parents=True, exist_ok=True)
-        
-        # 为当前pipeline创建特定的输出目录
-        self.pipeline_out_dir = self.out_dir / self.pipeline_id
+        self.pipeline_out_dir = self.output_dir / self.pipeline_id
         self.pipeline_out_dir.mkdir(parents=True, exist_ok=True)
         
         # 在pipeline特定目录下创建分类目录
@@ -63,14 +82,16 @@ class VideoSummarizationPipeline:
         for dir_path in [self.summaries_dir, self.metrics_dir, self.logs_dir]:
             dir_path.mkdir(parents=True, exist_ok=True)
             
-        # 原配置的结果目录也保留
-        for dir_path in [
-            RESULTS_CONFIG["llm_output_dir"],
-            RESULTS_CONFIG["scores_dir"],
-            RESULTS_CONFIG["similarity_scores_dir"],
-            RESULTS_CONFIG["f1score_dir"]
+        # 确保results_config中定义的所有目录都存在
+        for dir_name in [
+            self.results_config.llm_output_dir_relative,
+            self.results_config.scores_dir_relative,
+            self.results_config.similarity_scores_dir_relative,
+            self.results_config.f1score_dir_relative
         ]:
-            Path(dir_path).mkdir(parents=True, exist_ok=True)
+            # 将相对路径转为绝对路径
+            dir_path = self.pipeline_out_dir / dir_name
+            dir_path.mkdir(parents=True, exist_ok=True)
             
     def process_video(self, 
                      video_path: Union[str, Path],
@@ -88,9 +109,7 @@ class VideoSummarizationPipeline:
         # 1. 提取帧
         frame_extractor = FrameExtractor(
             video_path,
-            output_dir,
-            fps=FRAME_EXTRACTION_CONFIG["fps"],
-            frame_interval=FRAME_EXTRACTION_CONFIG["frame_interval"]
+            output_dir
         )
         frames, frame_time, video_time = frame_extractor.process(
             force_sample=True
@@ -124,9 +143,7 @@ class VideoSummarizationPipeline:
         # 4. 使用FeatureExtractor提取额外特征（如果需要）
         feature_extractor = FeatureExtractor(
             video_path,
-            output_dir,
-            stride=FEATURE_EXTRACTION_CONFIG["stride"],
-            batch_size=FEATURE_EXTRACTION_CONFIG["batch_size"]
+            output_dir
         )
         # 如果需要额外的特征处理，可以取消下面的注释
         # additional_features = feature_extractor.process(frames)
@@ -148,7 +165,7 @@ class VideoSummarizationPipeline:
             dataset_name: 数据集名称 ("SumMe" 或 "TVSum")
         """
         # 加载数据集
-        if dataset_name == "SumMe":
+        if dataset_name.lower() == "summe":
             dataset = SumMeDataset(self.dataset_dir)
             eval_method = dataset.eval_method
         else:
@@ -169,14 +186,13 @@ class VideoSummarizationPipeline:
             result = self.process_video(video, output_dir)
             result["id"] = video_name
             results.append(result)
-            
-        # 保存结果到原始目录
-        JsonHandler.save(
-            results,
-            RESULTS_CONFIG["llm_output_dir"] / f"{dataset_name.lower()}_result.json"
-        )
         
-        # 同时保存到pipeline特定目录
+        # 在内存中存储结果
+        self._cached_results = {
+            dataset_name.lower(): results
+        }
+        
+        # 为了兼容性，仍然保存到磁盘
         JsonHandler.save(
             results,
             self.summaries_dir / f"{dataset_name.lower()}_result.json"
@@ -193,7 +209,7 @@ class VideoSummarizationPipeline:
             评估结果
         """
         # 加载数据集
-        if dataset_name == "SumMe":
+        if dataset_name.lower() == "summe":
             dataset = SumMeDataset(self.dataset_dir)
             eval_method = dataset.eval_method
         else:
@@ -202,10 +218,18 @@ class VideoSummarizationPipeline:
             
         data_dict, _ = dataset.load_data()
         
-        # 加载处理结果
-        results = JsonHandler.load(
-            RESULTS_CONFIG["llm_output_dir"] / f"{dataset_name.lower()}_result.json"
-        )
+        # 优先使用内存中的结果，如果没有再从文件加载
+        dataset_key = dataset_name.lower()
+        if dataset_key in self._cached_results:
+            results = self._cached_results[dataset_key]
+            print(f"使用内存中的{dataset_name}数据集处理结果")
+        else:
+            # 从文件加载结果
+            results = JsonHandler.load(
+                self.summaries_dir / f"{dataset_key}_result.json"
+            )
+            # 加载后缓存到内存
+            self._cached_results[dataset_key] = results
         
         # 初始化评估器
         evaluator = F1ScoreEvaluator(eval_method)
@@ -255,9 +279,15 @@ class VideoSummarizationPipeline:
         results = {}
         start_time = time.time()
         
-        # 处理两个数据集
-        for dataset_name in ["SumMe", "TVSum"]:
-            print(f"\nProcessing {dataset_name} dataset...")
+        # 根据配置决定处理哪些数据集
+        datasets_to_process = []
+        if self.config.dataset.lower() == "all":
+            datasets_to_process = ["summe", "tvsum"]
+        else:
+            datasets_to_process = [self.config.dataset.lower()]
+        
+        for dataset_name in datasets_to_process:
+            print(f"\nProcessing {dataset_name.title()} dataset...")
             
             # 处理数据集
             self.process_dataset(dataset_name)
@@ -266,7 +296,7 @@ class VideoSummarizationPipeline:
             eval_results = self.evaluate(dataset_name)
             results[dataset_name] = eval_results
             
-            print(f"{dataset_name} Average F1-score: {eval_results['average_score']:.4f}")
+            print(f"{dataset_name.title()} Average F1-score: {eval_results['average_score']:.4f}")
         
         # 计算总运行时间
         run_time = time.time() - start_time

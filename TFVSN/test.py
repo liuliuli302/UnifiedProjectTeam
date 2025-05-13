@@ -3,7 +3,7 @@
 测试配置文件加载和使用
 """
 
-from TFVSN.config.settings import (
+from TFVSN.config.config import (
     FRAME_EXTRACTION_CONFIG,
     FEATURE_EXTRACTION_CONFIG,
     SUMMARIZATION_CONFIG,

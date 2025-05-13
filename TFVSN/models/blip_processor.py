@@ -10,31 +10,41 @@ from PIL import Image
 from transformers import Blip2Processor, Blip2Model
 
 from ..core.model_interface import VisionEncoderInterface
-from ..config.settings import BLIP_CONFIG
+from ..config import BlipConfig
 
 
 class BlipProcessor(VisionEncoderInterface):
     """BLIP模型处理器"""
     
-    def __init__(self, model_name: str = None, device: str = None):
+    def __init__(self, config: BlipConfig = None, model_name: str = None, device: str = None):
         """
         初始化BLIP处理器
         
         Args:
-            model_name: 模型名称，默认使用配置中的名称
-            device: 运行设备，默认使用配置中的设备
+            config: BLIP模型配置对象
+            model_name: 模型名称，如果提供则覆盖配置中的名称
+            device: 运行设备，如果提供则覆盖配置中的设备
         """
-        super().__init__(
-            model_name or BLIP_CONFIG["model_name"],
-            device or BLIP_CONFIG["device"]
-        )
+        # 获取配置
+        if config is None:
+            from ..config.config import load_config_from_json
+            config_data = load_config_from_json()
+            self.config = BlipConfig(config_data.get('models', {}).get('blip', {}))
+        else:
+            self.config = config
+        
+        # 模型名称和设备可以被参数覆盖
+        model_name_to_use = model_name or self.config.model_name
+        device_to_use = device or self.config.device
+        
+        super().__init__(model_name_to_use, device_to_use)
         
     def load_model(self) -> None:
         """加载BLIP模型"""
         self.processor = Blip2Processor.from_pretrained(self.model_name)
         self.model = Blip2Model.from_pretrained(
             self.model_name,
-            torch_dtype=getattr(torch, BLIP_CONFIG["dtype"])
+            torch_dtype=getattr(torch, self.config.dtype)
         )
         self.model.to(self.device)
         self.model.eval()

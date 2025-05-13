@@ -1,0 +1,58 @@
+{
+  "model_type": "video_summarization",
+  "paths": {
+    "root_dir": null,
+    "dataset_dir": "/root/autodl-tmp/data",
+    "output_dir": null
+  },
+  "pipeline": {
+    "pipeline_id": null,
+    "dataset": "all"
+  },
+  "datasets": {
+    "summe": {
+      "hdf_path": "SumMe/summe.h5",
+      "dataset_jump": "SumMe/summe_dataset_jump.json",
+      "dataset_turn": "SumMe/summe_dataset_turn.json",
+      "eval_method": "max"
+    },
+    "tvsum": {
+      "hdf_path": "TVSum/tvsum.h5",
+      "dataset_jump": "TVSum/tvsum_dataset_jump.json",
+      "dataset_turn": "TVSum/tvsum_dataset_turn.json",
+      "eval_method": "avg"
+    }
+  },
+  "results_output": {
+    "llm_output_dir_relative": "raw",
+    "scores_dir_relative": "scores",
+    "similarity_scores_dir_relative": "similarity_scores",
+    "f1score_dir_relative": "f1score"
+  },
+  "models": {
+    "llm": {
+      "model_name": "lmms-lab/LLaVA-Video-7B-Qwen2",
+      "conv_template": "qwen_1_5",
+      "device": "cuda",
+      "model_type": "llava_qwen"
+    },
+    "blip": {
+      "model_name": "Salesforce/blip2-opt-2.7b",
+      "device": "cuda",
+      "dtype": "float32"
+    }
+  },
+  "extraction": {
+    "frame": {
+      "fps": 1,
+      "frame_interval": 15
+    },
+    "feature": {
+      "stride": 1,
+      "batch_size": 16
+    }
+  },
+  "summarization": {
+    "summary_ratio": 0.15
+  }
+}

@@ -36,13 +36,16 @@ class DatasetBuilder(ABC):
         pass
     
     @abstractmethod
-    def save_data(self, data: Dict[str, Any], output_path: Union[str, Path]) -> None:
+    def save_data(self, data: Dict[str, Any], output_path: Union[str, Path] = None) -> Dict[str, Any]:
         """
-        保存数据集
+        处理数据集（不再保存到文件）
         
         Args:
             data: 数据集
-            output_path: 保存路径
+            output_path: 仅为兼容性保留，不再使用
+            
+        Returns:
+            处理后的数据
         """
         pass
     
@@ -154,19 +157,31 @@ class VideoSummarizationDataset(DatasetBuilder):
 class SumMeDataset(VideoSummarizationDataset):
     """SumMe数据集"""
     
-    def __init__(self, dataset_dir: Union[str, Path]):
+    def __init__(self, dataset_dir: Union[str, Path], config=None):
         """
         初始化SumMe数据集
         
         Args:
             dataset_dir: 数据集目录
+            config: 数据集配置对象
         """
         super().__init__(dataset_dir, "SumMe")
-        from ..config.settings import SUMME_DATASET
-        self.hdf_path = SUMME_DATASET["hdf_path"]
-        self.dataset_jump_path = SUMME_DATASET["dataset_jump"]
-        self.dataset_turn_path = SUMME_DATASET["dataset_turn"]
-        self.eval_method = SUMME_DATASET["eval_method"]
+        
+        # 直接从JSON加载配置
+        if config is None:
+            from ..config.config import load_config_from_json
+            from ..config import SumMeConfig
+            config_data = load_config_from_json()
+            self.config = SumMeConfig(config_data.get('datasets', {}).get('summe', {}))
+        else:
+            self.config = config
+            
+        self.hdf_path = self.config.hdf_path
+        self.eval_method = self.config.eval_method
+        
+        # 内存缓存
+        self.jump_dataset = None
+        self.turn_dataset = None
         
     def load_data(self) -> Tuple[Dict[str, Any], Dict[str, str]]:
         """
@@ -210,9 +225,13 @@ class SumMeDataset(VideoSummarizationDataset):
         Returns:
             jump数据集
         """
-        if self.dataset_jump_path.exists():
-            return self.load_json(self.dataset_jump_path)
-        return None
+        # 如果内存中已有缓存，直接返回
+        if self.jump_dataset is not None:
+            return self.jump_dataset
+        
+        # 第一次使用时，从数据字典生成jump数据集
+        self.jump_dataset = self._generate_jump_dataset()
+        return self.jump_dataset
         
     def get_turn_dataset(self) -> Dict[str, Any]:
         """
@@ -221,48 +240,114 @@ class SumMeDataset(VideoSummarizationDataset):
         Returns:
             turn数据集
         """
-        if self.dataset_turn_path.exists():
-            return self.load_json(self.dataset_turn_path)
-        return None
+        # 如果内存中已有缓存，直接返回
+        if self.turn_dataset is not None:
+            return self.turn_dataset
+            
+        # 第一次使用时，从数据字典生成turn数据集
+        self.turn_dataset = self._generate_turn_dataset()
+        return self.turn_dataset
         
-    def save_data(self, data: Dict[str, Any], output_path: Union[str, Path]) -> None:
+    def _generate_jump_dataset(self) -> Dict[str, Any]:
         """
-        保存数据集
+        从数据字典生成jump模式的数据集
+        
+        Returns:
+            生成的jump数据集
+        """
+        # 这里应该实现从HDF数据生成jump数据集的逻辑
+        # 实际实现会根据数据结构而定
+        
+        # 示例实现，实际应根据数据结构调整
+        if not hasattr(self, 'data_list') or not self.data_list:
+            self.load_data()
+            
+        jump_dataset = {}
+        for video_id, video_name in self.video_name_dict.items():
+            video_data = self.data_list[video_name]
+            # 根据需要生成jump模式数据
+            jump_dataset[video_id] = {
+                "video_name": video_name,
+                "change_points": video_data.get("change_points", []),
+                "n_frames": video_data.get("n_frames", 0),
+                "picks": video_data.get("picks", []),
+                "user_summary": video_data.get("user_summary", [])
+            }
+            
+        return jump_dataset
+        
+    def _generate_turn_dataset(self) -> Dict[str, Any]:
+        """
+        从数据字典生成turn模式的数据集
+        
+        Returns:
+            生成的turn数据集
+        """
+        # 这里应该实现从HDF数据生成turn数据集的逻辑
+        # 实际实现会根据数据结构而定
+        
+        # 示例实现，实际应根据数据结构调整
+        if not hasattr(self, 'data_list') or not self.data_list:
+            self.load_data()
+            
+        turn_dataset = {}
+        for video_id, video_name in self.video_name_dict.items():
+            video_data = self.data_list[video_name]
+            # 根据需要生成turn模式数据
+            turn_dataset[video_id] = {
+                "video_name": video_name,
+                "change_points": video_data.get("change_points", []),
+                "n_frames": video_data.get("n_frames", 0),
+                "picks": video_data.get("picks", []),
+                "user_summary": video_data.get("user_summary", [])
+            }
+            
+        return turn_dataset
+        
+    def save_data(self, data: Dict[str, Any], output_path: Union[str, Path] = None) -> Dict[str, Any]:
+        """
+        "保存"数据集 - 现在只在内存中处理
         
         Args:
             data: 数据集
-            output_path: 保存路径
+            output_path: 仅为兼容性保留，不再使用
+            
+        Returns:
+            处理后的数据
         """
-        output_path = Path(output_path)
-        output_path.parent.mkdir(parents=True, exist_ok=True)
-        
-        # 根据文件扩展名决定保存方式
-        if output_path.suffix.lower() == '.json':
-            self.save_json(data, output_path)
-        elif output_path.suffix.lower() == '.h5':
-            with h5py.File(output_path, 'w') as f:
-                for key, value in data.items():
-                    f.create_dataset(key, data=value)
-        else:
-            raise ValueError(f"不支持的文件格式: {output_path.suffix}")
+        # 只在内存中处理数据，不再写入文件
+        print(f"数据处理完成，维持在内存中（跳过磁盘写入）")
+        return data
 
 
 class TVSumDataset(VideoSummarizationDataset):
     """TVSum数据集"""
     
-    def __init__(self, dataset_dir: Union[str, Path]):
+    def __init__(self, dataset_dir: Union[str, Path], config=None):
         """
         初始化TVSum数据集
         
         Args:
             dataset_dir: 数据集目录
+            config: 数据集配置对象
         """
         super().__init__(dataset_dir, "TVSum")
-        from ..config.settings import TVSUM_DATASET
-        self.hdf_path = TVSUM_DATASET["hdf_path"]
-        self.dataset_jump_path = TVSUM_DATASET["dataset_jump"]
-        self.dataset_turn_path = TVSUM_DATASET["dataset_turn"]
-        self.eval_method = TVSUM_DATASET["eval_method"]
+        
+        # 直接从JSON加载配置
+        if config is None:
+            from ..config.config import load_config_from_json
+            from ..config import TVSumConfig
+            config_data = load_config_from_json()
+            self.config = TVSumConfig(config_data.get('datasets', {}).get('tvsum', {}))
+        else:
+            self.config = config
+            
+        self.hdf_path = self.config.hdf_path
+        self.eval_method = self.config.eval_method
+        
+        # 内存缓存
+        self.jump_dataset = None
+        self.turn_dataset = None
         
     def load_data(self) -> Tuple[Dict[str, Any], Dict[str, str]]:
         """
@@ -306,9 +391,13 @@ class TVSumDataset(VideoSummarizationDataset):
         Returns:
             jump数据集
         """
-        if self.dataset_jump_path.exists():
-            return self.load_json(self.dataset_jump_path)
-        return None
+        # 如果内存中已有缓存，直接返回
+        if self.jump_dataset is not None:
+            return self.jump_dataset
+        
+        # 第一次使用时，从数据字典生成jump数据集
+        self.jump_dataset = self._generate_jump_dataset()
+        return self.jump_dataset
         
     def get_turn_dataset(self) -> Dict[str, Any]:
         """
@@ -317,27 +406,62 @@ class TVSumDataset(VideoSummarizationDataset):
         Returns:
             turn数据集
         """
-        if self.dataset_turn_path.exists():
-            return self.load_json(self.dataset_turn_path)
-        return None
+        # 如果内存中已有缓存，直接返回
+        if self.turn_dataset is not None:
+            return self.turn_dataset
+            
+        # 第一次使用时，从数据字典生成turn数据集
+        self.turn_dataset = self._generate_turn_dataset()
+        return self.turn_dataset
         
-    def save_data(self, data: Dict[str, Any], output_path: Union[str, Path]) -> None:
+    def _generate_jump_dataset(self) -> Dict[str, Any]:
         """
-        保存数据集
+        从数据字典生成jump模式的数据集
         
-        Args:
-            data: 数据集
-            output_path: 保存路径
+        Returns:
+            生成的jump数据集
         """
-        output_path = Path(output_path)
-        output_path.parent.mkdir(parents=True, exist_ok=True)
+        # 这里实现从HDF数据生成jump数据集的逻辑
         
-        # 根据文件扩展名决定保存方式
-        if output_path.suffix.lower() == '.json':
-            self.save_json(data, output_path)
-        elif output_path.suffix.lower() == '.h5':
-            with h5py.File(output_path, 'w') as f:
-                for key, value in data.items():
-                    f.create_dataset(key, data=value)
-        else:
-            raise ValueError(f"不支持的文件格式: {output_path.suffix}")
+        if not hasattr(self, 'data_list') or not self.data_list:
+            self.load_data()
+            
+        jump_dataset = {}
+        for video_id, video_name in self.video_name_dict.items():
+            video_data = self.data_list[video_name]
+            # 根据需要生成jump模式数据
+            jump_dataset[video_id] = {
+                "video_name": video_name,
+                "change_points": video_data.get("change_points", []),
+                "n_frames": video_data.get("n_frames", 0),
+                "picks": video_data.get("picks", []),
+                "user_summary": video_data.get("user_summary", [])
+            }
+            
+        return jump_dataset
+        
+    def _generate_turn_dataset(self) -> Dict[str, Any]:
+        """
+        从数据字典生成turn模式的数据集
+        
+        Returns:
+            生成的turn数据集
+        """
+        # 这里实现从HDF数据生成turn数据集的逻辑
+        
+        if not hasattr(self, 'data_list') or not self.data_list:
+            self.load_data()
+            
+        turn_dataset = {}
+        for video_id, video_name in self.video_name_dict.items():
+            video_data = self.data_list[video_name]
+            # 根据需要生成turn模式数据
+            turn_dataset[video_id] = {
+                "video_name": video_name,
+                "change_points": video_data.get("change_points", []),
+                "n_frames": video_data.get("n_frames", 0),
+                "picks": video_data.get("picks", []),
+                "user_summary": video_data.get("user_summary", [])
+            }
+            
+        return turn_dataset

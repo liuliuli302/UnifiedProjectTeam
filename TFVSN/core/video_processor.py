@@ -46,21 +46,34 @@ class VideoProcessor(ABC):
 class FrameExtractor(VideoProcessor):
     """从视频中提取帧"""
     
-    def __init__(self, video_path: Union[str, Path], output_dir: Union[str, Path], fps: float = 1, frame_interval: int = None):
+    def __init__(self, video_path: Union[str, Path], output_dir: Union[str, Path], config=None, fps: float = None, frame_interval: int = None):
         """
         初始化帧提取器
         
         Args:
             video_path: 视频文件路径
             output_dir: 提取的帧保存目录
-            fps: 每秒提取的帧数
+            config: 帧提取配置对象
+            fps: 每秒提取的帧数，如果提供则覆盖配置中的值
             frame_interval: 帧间隔，如果指定则优先使用
         """
         super().__init__(video_path)
+        
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
-        self.fps = fps
-        self.frame_interval = frame_interval
+        
+        # 使用配置对象
+        if config is None:
+            from ..config.config import load_config_from_json
+            from ..config import FrameExtractionConfig
+            config_data = load_config_from_json()
+            self.config = FrameExtractionConfig(config_data.get('extraction', {}).get('frame', {}))
+        else:
+            self.config = config
+        
+        # 参数可以覆盖配置项
+        self.fps = fps if fps is not None else self.config.fps
+        self.frame_interval = frame_interval if frame_interval is not None else self.config.frame_interval
         
     def process(self, max_frames: Optional[int] = None, force_sample: bool = False) -> Tuple[np.ndarray, str, float]:
         """
@@ -129,24 +142,34 @@ class FrameExtractor(VideoProcessor):
 class FeatureExtractor(VideoProcessor):
     """从视频中提取特征"""
     
-    def __init__(self, video_path: Union[str, Path], output_dir: Union[str, Path], stride: int = None, batch_size: int = None):
+    def __init__(self, video_path: Union[str, Path], output_dir: Union[str, Path], config=None, stride: int = None, batch_size: int = None):
         """
         初始化特征提取器
         
         Args:
             video_path: 视频文件路径
             output_dir: 特征保存目录
-            stride: 特征提取的步长
-            batch_size: 批处理大小
+            config: 特征提取配置对象
+            stride: 特征提取的步长，如果提供则覆盖配置中的值
+            batch_size: 批处理大小，如果提供则覆盖配置中的值
         """
         super().__init__(video_path)
+        
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
         
-        # 使用配置文件中的参数或默认值
-        from ..config.settings import FEATURE_EXTRACTION_CONFIG
-        self.stride = stride or FEATURE_EXTRACTION_CONFIG["stride"]
-        self.batch_size = batch_size or FEATURE_EXTRACTION_CONFIG["batch_size"]
+        # 使用配置对象
+        if config is None:
+            from ..config.config import load_config_from_json
+            from ..config import FeatureExtractionConfig
+            config_data = load_config_from_json()
+            self.config = FeatureExtractionConfig(config_data.get('extraction', {}).get('feature', {}))
+        else:
+            self.config = config
+        
+        # 参数可以覆盖配置项
+        self.stride = stride if stride is not None else self.config.stride
+        self.batch_size = batch_size if batch_size is not None else self.config.batch_size
     
     def process(self, frames: np.ndarray = None, *args, **kwargs) -> np.ndarray:
         """

@@ -9,25 +9,35 @@ import numpy as np
 from PIL import Image
 
 from ..core.model_interface import LLMInterface
-from ..config.settings import LLM_CONFIG
+from ..config import LLMConfig
 
 
 class LLMProcessor(LLMInterface):
     """LLaVA模型处理器"""
     
-    def __init__(self, model_name: str = None, device: str = None):
+    def __init__(self, config: LLMConfig = None, model_name: str = None, device: str = None):
         """
         初始化LLaVA处理器
         
         Args:
-            model_name: 模型名称，默认使用配置中的名称
-            device: 运行设备，默认使用配置中的设备
+            config: LLM模型配置对象
+            model_name: 模型名称，如果提供则覆盖配置中的名称
+            device: 运行设备，如果提供则覆盖配置中的设备
         """
-        super().__init__(
-            model_name or LLM_CONFIG["model_name"],
-            device or LLM_CONFIG["device"]
-        )
-        self.conv_template = LLM_CONFIG["conv_template"]
+        # 获取配置
+        if config is None:
+            from ..config.config import load_config_from_json
+            config_data = load_config_from_json()
+            self.config = LLMConfig(config_data.get('models', {}).get('llm', {}))
+        else:
+            self.config = config
+        
+        # 模型名称和设备可以被参数覆盖
+        model_name_to_use = model_name or self.config.model_name
+        device_to_use = device or self.config.device
+        
+        super().__init__(model_name_to_use, device_to_use)
+        self.conv_template = self.config.conv_template
         
     def load_model(self) -> None:
         """加载LLaVA模型"""
@@ -38,7 +48,7 @@ class LLMProcessor(LLMInterface):
         self.tokenizer, self.model, self.processor, _ = load_pretrained_model(
             self.model_name,
             None,
-            LLM_CONFIG["model_type"],
+            self.config.model_type,
             torch_dtype="bfloat16",
             device_map="auto"
         )

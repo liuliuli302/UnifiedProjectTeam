@@ -178,7 +178,7 @@ class ScoreCalculator:
         Args:
             summary_ratio: 摘要长度占原视频长度的比例，如果为None则使用配置中的值
         """
-        from ..config.settings import SUMMARIZATION_CONFIG
+        from ..config.config import SUMMARIZATION_CONFIG
         self.summary_ratio = summary_ratio or SUMMARIZATION_CONFIG["summary_ratio"]
         
     def generate_summary(self, shot_bound: np.ndarray, 
