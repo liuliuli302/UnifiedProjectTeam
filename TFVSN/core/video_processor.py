@@ -1,49 +1,13 @@
 """
-VideoProcessor基类：处理视频的基础功能
+视频处理：处理视频的相关功能
 """
 
-from abc import ABC, abstractmethod
 from pathlib import Path
 import numpy as np
 from typing import List, Tuple, Dict, Any, Optional, Union
 
 
-class VideoProcessor(ABC):
-    """视频处理基类，定义视频处理的通用接口"""
-    
-    def __init__(self, video_path: Union[str, Path]):
-        """
-        初始化VideoProcessor
-        
-        Args:
-            video_path: 视频文件路径
-        """
-        self.video_path = Path(video_path)
-        if not self.video_path.exists():
-            raise FileNotFoundError(f"视频文件不存在: {self.video_path}")
-        
-    @abstractmethod
-    def process(self, *args, **kwargs):
-        """
-        处理视频的抽象方法，需要被子类实现
-        """
-        pass
-    
-    def get_video_info(self) -> Dict[str, Any]:
-        """
-        获取视频基本信息
-        
-        Returns:
-            包含视频信息的字典
-        """
-        # 子类可以覆盖此方法以提供更多信息
-        return {
-            "path": str(self.video_path),
-            "name": self.video_path.stem
-        }
-
-
-class FrameExtractor(VideoProcessor):
+class FrameExtractor:
     """从视频中提取帧"""
     
     def __init__(self, video_path: Union[str, Path], output_dir: Union[str, Path], config=None, fps: float = None, frame_interval: int = None):
@@ -57,7 +21,9 @@ class FrameExtractor(VideoProcessor):
             fps: 每秒提取的帧数，如果提供则覆盖配置中的值
             frame_interval: 帧间隔，如果指定则优先使用
         """
-        super().__init__(video_path)
+        self.video_path = Path(video_path)
+        if not self.video_path.exists():
+            raise FileNotFoundError(f"视频文件不存在: {self.video_path}")
         
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
@@ -137,9 +103,21 @@ class FrameExtractor(VideoProcessor):
             output_paths.append(frame_path)
             
         return output_paths
+        
+    def get_video_info(self) -> Dict[str, Any]:
+        """
+        获取视频基本信息
+        
+        Returns:
+            包含视频信息的字典
+        """
+        return {
+            "path": str(self.video_path),
+            "name": self.video_path.stem
+        }
 
 
-class FeatureExtractor(VideoProcessor):
+class FeatureExtractor:
     """从视频中提取特征"""
     
     def __init__(self, video_path: Union[str, Path], output_dir: Union[str, Path], config=None, stride: int = None, batch_size: int = None):
@@ -153,7 +131,9 @@ class FeatureExtractor(VideoProcessor):
             stride: 特征提取的步长，如果提供则覆盖配置中的值
             batch_size: 批处理大小，如果提供则覆盖配置中的值
         """
-        super().__init__(video_path)
+        self.video_path = Path(video_path)
+        if not self.video_path.exists():
+            raise FileNotFoundError(f"视频文件不存在: {self.video_path}")
         
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
@@ -201,9 +181,21 @@ class FeatureExtractor(VideoProcessor):
             features.append(batch_features)
             
         return np.vstack(features) if features else np.array([])
+        
+    def get_video_info(self) -> Dict[str, Any]:
+        """
+        获取视频基本信息
+        
+        Returns:
+            包含视频信息的字典
+        """
+        return {
+            "path": str(self.video_path),
+            "name": self.video_path.stem
+        }
 
 
-class TextFeatureExtractor(ABC):
+class TextFeatureExtractor:
     """文本特征提取器"""
     
     def __init__(self, model_name: str = None):
@@ -216,12 +208,10 @@ class TextFeatureExtractor(ABC):
         self.model_name = model_name
         self.model = None
         
-    @abstractmethod
     def load_model(self):
         """加载模型"""
         pass
     
-    @abstractmethod
     def process(self, texts: List[str], *args, **kwargs) -> np.ndarray:
         """
         处理文本并提取特征

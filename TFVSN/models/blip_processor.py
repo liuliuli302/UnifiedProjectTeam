@@ -9,11 +9,10 @@ import numpy as np
 from PIL import Image
 from transformers import Blip2Processor, Blip2Model
 
-from ..core.model_interface import VisionEncoderInterface
 from ..config import BlipConfig
 
 
-class BlipProcessor(VisionEncoderInterface):
+class BlipProcessor:
     """BLIP模型处理器"""
     
     def __init__(self, config: BlipConfig = None, model_name: str = None, device: str = None):
@@ -34,10 +33,10 @@ class BlipProcessor(VisionEncoderInterface):
             self.config = config
         
         # 模型名称和设备可以被参数覆盖
-        model_name_to_use = model_name or self.config.model_name
-        device_to_use = device or self.config.device
-        
-        super().__init__(model_name_to_use, device_to_use)
+        self.model_name = model_name or self.config.model_name
+        self.device = device or self.config.device
+        self.model = None
+        self.processor = None
         
     def load_model(self) -> None:
         """加载BLIP模型"""

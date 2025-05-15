@@ -2,52 +2,12 @@
 DatasetBuilder: 数据集构建和管理
 """
 
-from abc import ABC, abstractmethod
 from pathlib import Path
 import json
 import h5py
 import numpy as np
 from typing import Dict, List, Any, Union, Optional, Tuple
 import os
-
-
-class DatasetBuilder(ABC):
-    """数据集构建器基类"""
-    
-    def __init__(self, dataset_dir: Union[str, Path]):
-        """
-        初始化数据集构建器
-        
-        Args:
-            dataset_dir: 数据集目录
-        """
-        self.dataset_dir = Path(dataset_dir)
-        if not self.dataset_dir.exists():
-            raise FileNotFoundError(f"数据集目录不存在: {self.dataset_dir}")
-            
-    @abstractmethod
-    def load_data(self) -> Dict[str, Any]:
-        """
-        加载数据集
-        
-        Returns:
-            数据集内容
-        """
-        pass
-    
-    @abstractmethod
-    def save_data(self, data: Dict[str, Any], output_path: Union[str, Path] = None) -> Dict[str, Any]:
-        """
-        处理数据集（不再保存到文件）
-        
-        Args:
-            data: 数据集
-            output_path: 仅为兼容性保留，不再使用
-            
-        Returns:
-            处理后的数据
-        """
-        pass
     
     @staticmethod
     def hdf5_to_dict(hdf5_file: Union[str, Path]) -> Dict[str, Any]:
@@ -99,7 +59,55 @@ class DatasetBuilder(ABC):
             json.dump(data, f, indent=indent)
 
 
-class VideoSummarizationDataset(DatasetBuilder):
+# 通用数据集函数
+def hdf5_to_dict(hdf5_file: Union[str, Path]) -> Dict[str, Any]:
+    """
+    将HDF5文件转换为字典
+    
+    Args:
+        hdf5_file: HDF5文件路径
+        
+    Returns:
+        转换后的字典
+    """
+    def recursively_convert_to_dict(h5_obj):
+        if isinstance(h5_obj, h5py.Dataset):
+            return h5_obj[()]
+        elif isinstance(h5_obj, h5py.Group):
+            return {key: recursively_convert_to_dict(h5_obj[key]) for key in h5_obj.keys()}
+        else:
+            raise TypeError(f"不支持的类型: {type(h5_obj)}")
+
+    with h5py.File(hdf5_file, "r") as f:
+        return recursively_convert_to_dict(f)
+
+def load_json(file_path: Union[str, Path]) -> Dict[str, Any]:
+    """
+    加载JSON文件
+    
+    Args:
+        file_path: JSON文件路径
+        
+    Returns:
+        JSON内容
+    """
+    with open(file_path, 'r') as f:
+        return json.load(f)
+        
+def save_json(data: Dict[str, Any], file_path: Union[str, Path], indent: int = 4) -> None:
+    """
+    保存为JSON文件
+    
+    Args:
+        data: 数据
+        file_path: 保存路径
+        indent: 缩进
+    """
+    with open(file_path, 'w') as f:
+        json.dump(data, f, indent=indent)
+
+
+class VideoSummarizationDataset:
     """视频摘要数据集基类"""
     
     def __init__(self, dataset_dir: Union[str, Path], dataset_name: str):
@@ -110,7 +118,9 @@ class VideoSummarizationDataset(DatasetBuilder):
             dataset_dir: 数据集目录
             dataset_name: 数据集名称
         """
-        super().__init__(dataset_dir)
+        self.dataset_dir = Path(dataset_dir)
+        if not self.dataset_dir.exists():
+            raise FileNotFoundError(f"数据集目录不存在: {self.dataset_dir}")
         self.dataset_name = dataset_name
         self.frames_dir = Path(self.dataset_dir, dataset_name, "frames")
         self.data_list = {}
@@ -125,7 +135,7 @@ class VideoSummarizationDataset(DatasetBuilder):
             - 数据列表
             - 视频名称字典
         """
-        raise NotImplementedError("子类必须实现此方法")
+        pass
         
     def get_score_index_from_image_list(self, image_list: List[str], frame_interval: int) -> List[int]:
         """
@@ -151,10 +161,10 @@ class VideoSummarizationDataset(DatasetBuilder):
         Returns:
             视频路径列表
         """
-        raise NotImplementedError("子类必须实现此方法")
+        pass
 
 
-class SumMeDataset(VideoSummarizationDataset):
+class SumMeDataset:
     """SumMe数据集"""
     
     def __init__(self, dataset_dir: Union[str, Path], config=None):
@@ -165,7 +175,16 @@ class SumMeDataset(VideoSummarizationDataset):
             dataset_dir: 数据集目录
             config: 数据集配置对象
         """
-        super().__init__(dataset_dir, "SumMe")
+        self.dataset_dir = Path(dataset_dir)
+        if not self.dataset_dir.exists():
+            raise FileNotFoundError(f"数据集目录不存在: {self.dataset_dir}")
+            
+        self.dataset_name = "SumMe"
+        self.frames_dir = Path(self.dataset_dir, self.dataset_name, "frames")
+        self.data_list = {}
+        self.video_name_dict = {}
+        self.jump_dataset = None
+        self.turn_dataset = None
         
         # 直接从JSON加载配置
         if config is None:
@@ -320,7 +339,7 @@ class SumMeDataset(VideoSummarizationDataset):
         return data
 
 
-class TVSumDataset(VideoSummarizationDataset):
+class TVSumDataset:
     """TVSum数据集"""
     
     def __init__(self, dataset_dir: Union[str, Path], config=None):
@@ -331,7 +350,16 @@ class TVSumDataset(VideoSummarizationDataset):
             dataset_dir: 数据集目录
             config: 数据集配置对象
         """
-        super().__init__(dataset_dir, "TVSum")
+        self.dataset_dir = Path(dataset_dir)
+        if not self.dataset_dir.exists():
+            raise FileNotFoundError(f"数据集目录不存在: {self.dataset_dir}")
+            
+        self.dataset_name = "TVSum"
+        self.frames_dir = Path(self.dataset_dir, self.dataset_name, "frames")
+        self.data_list = {}
+        self.video_name_dict = {}
+        self.jump_dataset = None
+        self.turn_dataset = None
         
         # 直接从JSON加载配置
         if config is None:

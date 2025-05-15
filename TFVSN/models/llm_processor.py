@@ -8,11 +8,10 @@ from pathlib import Path
 import numpy as np
 from PIL import Image
 
-from ..core.model_interface import LLMInterface
 from ..config import LLMConfig
 
 
-class LLMProcessor(LLMInterface):
+class LLMProcessor:
     """LLaVA模型处理器"""
     
     def __init__(self, config: LLMConfig = None, model_name: str = None, device: str = None):
@@ -33,10 +32,11 @@ class LLMProcessor(LLMInterface):
             self.config = config
         
         # 模型名称和设备可以被参数覆盖
-        model_name_to_use = model_name or self.config.model_name
-        device_to_use = device or self.config.device
-        
-        super().__init__(model_name_to_use, device_to_use)
+        self.model_name = model_name or self.config.model_name
+        self.device = device or self.config.device
+        self.model = None
+        self.processor = None
+        self.tokenizer = None
         self.conv_template = self.config.conv_template
         
     def load_model(self) -> None:
